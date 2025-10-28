@@ -3,7 +3,6 @@ package com.trialrestock.mixin;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.trialrestock.TrialVaultServerDataAccess;
 import it.unimi.dsi.fastutil.objects.Object2LongArrayMap;
-import joptsimple.util.KeyValuePair;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.VaultBlockEntity;
 import net.minecraft.block.vault.VaultConfig;
@@ -13,6 +12,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
@@ -28,18 +28,16 @@ import java.util.UUID;
 public class TrialVaultServerMixin {
 
     @Shadow
-    private static boolean isValidKey(VaultConfig config, ItemStack stack) {return ItemStack.areItemsAndComponentsEqual(stack, config.keyItem()) && stack.getCount() >= config.keyItem().getCount();};
-    @Shadow
-    private static void playFailedUnlockSound(ServerWorld world, VaultServerData serverData, BlockPos pos) {
+    private static void playFailedUnlockSound(ServerWorld world, VaultServerData serverData, BlockPos pos, SoundEvent sound) {
 
         if (world.getTime() >= ((TrialVaultServerDataAccessor)serverData).trialrestock$getLastFailedUnlockTime() + 15L) {
-            world.playSound(null, pos, SoundEvents.BLOCK_VAULT_INSERT_ITEM_FAIL, SoundCategory.BLOCKS);
+            world.playSound(null, pos, sound, SoundCategory.BLOCKS);
             ((TrialVaultServerDataAccessor)serverData).trialrestock$setLastFailedUnlockTime(world.getTime());
         }
 
-    };
+    }
 
-    @Inject(method = "tryUnlock", at = @At(value = "INVOKE", target = "Lnet/minecraft/item/ItemStack;decrement(I)V"))
+    @Inject(method = "tryUnlock", at = @At(value = "INVOKE", target = "Lnet/minecraft/item/ItemStack;decrementUnlessCreative(ILnet/minecraft/entity/LivingEntity;)V"))
     private static void injected(ServerWorld world, BlockPos pos, BlockState state, VaultConfig config, VaultServerData serverData, VaultSharedData sharedData, PlayerEntity player, ItemStack stack, CallbackInfo ci) {
 
         stack.decrement(((TrialVaultServerDataAccess)serverData).trialrestock$getPlayerCosts().getOrDefault(player.getUuid(), 1) - 1);
@@ -50,12 +48,12 @@ public class TrialVaultServerMixin {
     private static void injected2(ServerWorld world, BlockPos pos, BlockState state, VaultConfig config, VaultServerData serverData, VaultSharedData sharedData, PlayerEntity player, ItemStack stack, CallbackInfo ci) {
 
         if (stack.getCount() < ((TrialVaultServerDataAccess)serverData).trialrestock$getPlayerCosts().getOrDefault(player.getUuid(),1)) {
-            playFailedUnlockSound(world, serverData, pos);
+            playFailedUnlockSound(world, serverData, pos, SoundEvents.BLOCK_VAULT_INSERT_ITEM_FAIL);
             player.sendMessage(Text.of("You need " + ((TrialVaultServerDataAccess)serverData).trialrestock$getPlayerCosts().getOrDefault(player.getUuid(),1) + " keys to open this vault!"), true);
             ci.cancel();
         }
         if (((TrialVaultServerDataAccess)serverData).trialrestock$getPlayerCooldowns().containsKey(player.getUuid())) {
-            playFailedUnlockSound(world, serverData, pos);
+            playFailedUnlockSound(world, serverData, pos, SoundEvents.BLOCK_VAULT_INSERT_ITEM_FAIL);
             ci.cancel();
         }
 
